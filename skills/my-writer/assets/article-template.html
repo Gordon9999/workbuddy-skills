@@ -75,15 +75,21 @@
             border-bottom: 1px solid #e2e8f0;
         }
 
-        /* ===== 正文段落 ===== */
+        /* ===== 正文段落（换行留白是硬要求，间距不可调小） ===== */
         .article-body p {
             font-size: 1rem;
             color: #1e293b;
             line-height: 1.8;
-            margin-bottom: 0.6rem;
+            margin-bottom: 1.05rem;
         }
         .article-body p:last-child {
             margin-bottom: 0;
+        }
+        /* <br> 仅用于比段落更大的间隔 */
+        .article-body br {
+            display: block;
+            margin: 0.45rem 0;
+            content: "";
         }
 
         /* ===== 绿色高亮 ===== */

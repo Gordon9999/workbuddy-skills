@@ -292,7 +292,15 @@ def main():
     ap.add_argument("--out", default="index.html")
     args = ap.parse_args()
 
-    paths = fetch_tree(args.repo, args.branch)
+    try:
+        paths = fetch_tree(args.repo, args.branch)
+    except SystemExit:
+        # API 匿名限流/网络异常时，回退到本地 git 工作副本（须先 clone 并 cd 进仓库根目录）
+        print("falling back to local git ls-files ...", flush=True)
+        out = subprocess.run(["git", "ls-files"], capture_output=True, text=True)
+        if out.returncode != 0:
+            raise SystemExit("FATAL: no API access and not inside a git repo; cd into the repo clone first")
+        paths = [p for p in out.stdout.split() if p.lower().endswith(".html")]
     paths.sort()
     generated_at = subprocess.run(["date", "+%Y-%m-%d %H:%M"], capture_output=True, text=True).stdout.strip()
     static = render_static(paths)
