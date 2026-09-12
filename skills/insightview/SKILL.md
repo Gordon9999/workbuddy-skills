@@ -102,6 +102,19 @@ InsightView 是一套主题阅读与综合报告生成工作流。用户围绕�
 
 详见 `references/batch-strategy.md`。
 
+### 发布前自检（必做，2026-09-12 补充）
+
+每篇附录写完、发布前，跑一遍这四项检查（写成一次性 Python 脚本最快）：
+
+1. **附录内部编号 = 文件名编号**：`appendix-06.html` 里的 `<div class="tag">附录 NN</div>`、`<title>`、footer 三处都必须是 `06`。
+   *（2026-09-12 实际踩坑：`appendix-06.html` 内部标着「附录 07」，主报告索引却写 06，两边对不上，发布后才发现。）*
+2. **内部链接零缺失**：主报告的 `href="appendix-NN.html"`、每篇附录的 `href="index.html"` 逐个验证目标文件存在。
+3. **标签白名单 + div 配对**：只允许 `html/head/body/meta/title/style/div/span/p/a/ul/li/h1/h2/h3/strong/br/em/link/table/tr/td/th/thead/tbody`；`<div` 与 `</div>` 数量必须相等。
+   **禁止用 `<b>`**——统一写成 `<span class="highlight">`，否则与既有篇目风格不一致。
+4. **推文数与高亮密度**：主报告 12-16 条、单篇附录 16-23 条；高亮数为 `class="highlight"` 总数减去 CSS 里那 1 处定义，再除以推文数，应落在 1-3。
+
+**主报告索引收尾**：全部附录生成完后，把索引里所有 `<span class="pending">` 和 `badge pending` 换成可点击 `<a href="appendix-NN.html">`，同时去掉「已生成」徽章（全生成后徽章不再有信息量，只留编号列表最干净）。
+
 ### 第四步：发布到 git（用户约定，2026-08-07）
 
 - 用户说「发布到 git」= 将**推文版**（`tweets/` 下 HTML：主报告 `index.html` + `appendix-NN.html`）发布到 GitHub 仓库 **SaaS2Agent**（https://github.com/Gordon9999/SaaS2Agent，公开仓库，已开启 GitHub Pages；导航页对外标题为 **SaaS2Agent**）。
