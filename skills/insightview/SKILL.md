@@ -104,24 +104,34 @@ InsightView 是一套主题阅读与综合报告生成工作流。用户围绕�
 
 ### 第四步：发布到 git（用户约定，2026-08-07）
 
-- 用户说「发布到 git」= 将**推文版**（`tweets/` 下 HTML：主报告 `index.html` + `appendix-NN.html`）发布到 GitHub 仓库 **AIKefu**（https://github.com/Gordon9999/AIKefu，公开仓库，已开启 GitHub Pages）。
+- 用户说「发布到 git」= 将**推文版**（`tweets/` 下 HTML：主报告 `index.html` + `appendix-NN.html`）发布到 GitHub 仓库 **SaaS2Agent**（https://github.com/Gordon9999/SaaS2Agent，公开仓库，已开启 GitHub Pages；导航页对外标题为 **SaaS2Agent**）。
+- **仓库目录结构（2026-09-12 重组，已上线）**：不再扁平存放，一级目录按研究方向分组，主题放在对应分组下：
+
+| 分组 | 展示名 | 收录主题（现有） |
+|---|---|---|
+| `XiaoP/` | 🤖 个人助理方向 | instinct |
+| `Kefu/` | 🎧 客服 AI | cresta / decagon / intercom / sierra / sierra-saas-disruption |
+| `CRM/` | 🏢 AI + CRM / 内部系统 | day.ai / hubspot / rox.ai / salesforce |
+| `SaaS/` | 💰 传统 SaaS 大佬 | servicenow / zendesk |
+
+- **发布路径 = `<分组>/<主题-slug>/`**（例：`XiaoP/instinct/`、`Kefu/decagon/`）。新主题先判断归属分组；个人助理 / Personal Agent 方向一律进 `XiaoP/`。
 - 执行流程：
-  1. **先询问目标目录名**（用户可直接给出，如 `decagon`）；
-  2. 将 tweets 下的推文 HTML 上传到 `AIKefu/<目录名>/`；
+  1. **先确认目标分组与目录名**（用户可直接给出，如「放入 XiaoP」）；
+  2. 将 tweets 下的推文 HTML 复制到 `SaaS2Agent/<分组>/<目录名>/`；
   3. 发布：Pages 已全局开启（main 分支根目录 + `.nojekyll`），上传后自动构建生效，无需重复开启；
-  4. 输出访问链接 `https://gordon9999.github.io/AIKefu/<目录名>/`（上传后 curl 验证返回 200）。
-- 技术要点（本机网络限制）：
-  - **git push 不可用**：绕代理直连 github.com:443 被墙；必须走**当前系统代理**。代理端口动态变化（57687→54647→7897），每次发布前先检测：`scutil --proxy | grep -E "HTTPPort|HTTPSPort"`，curl 用 `-x http://127.0.0.1:<当前端口>`；
-  - **必须用 GitHub Contents API**：`PUT https://api.github.com/repos/Gordon9999/AIKefu/contents/<目录名>/<文件名>`，body `{"message": "...", "content": "<base64>"}`，Header `Authorization: Bearer <token>`（201 即成功）；
-  - 注意：`contents/<目录名>` 带尾斜杠会返回 302 canonical 重定向，API 请求须加 `curl -L` 跟随；macOS base64 输出带换行，须 `| tr -d '\n'` 再入 JSON；
+  4. 输出访问链接 `https://gordon9999.github.io/SaaS2Agent/<分组>/<目录名>/`（上传后 curl 验证返回 200）。
+- 技术要点：
+  - **首选 git（2026-09-11 起 SSH 已打通）**：仓库 clone 在 `~/Developer/GitHub/SaaS2Agent`，`~/.ssh/config` 已把 github.com 指向 `ssh.github.com:443`，直接 `git add -A && git commit && git push origin main` 即可，无需代理/token；
+  - **降级方案（git 不可用时）GitHub Contents API**：`PUT https://api.github.com/repos/Gordon9999/SaaS2Agent/contents/<路径>/<文件名>`，body `{"message": "...", "content": "<base64>"}`，Header `Authorization: Bearer <token>`（201 即成功）；路径带尾斜杠会返回 302 canonical 重定向，须加 `curl -L`；macOS base64 输出带换行，须 `| tr -d '\n'`；
   - 凭证：`printf "protocol=https\nhost=github.com\n\n" | git credential fill` 从钥匙串取（password 字段即 token，**切勿输出**）；
-  - 批量上传：遍历 `tweets/*.html` → base64 编码 → 逐个 PUT；上传后 curl 检查 `https://gordon9999.github.io/AIKefu/<目录名>/` 返回 200 确认发布生效。
-- **发布后重建导航页（2026-08-08 起）**：
-  - AIKefu 根目录 `index.html` 是**静态渲染导航页**（v3：内容在生成时渲染成纯 HTML，零 JS 依赖、打开必定显示、秒开），必须保持与仓库最新文件一致；
-  - 渲染规则：子目录有 index.html → 展示「主页」入口卡片；**子目录无 index.html → 直接展开该目录文件列表**（GitHub Pages 不提供目录浏览，若只链到目录会空白——2026-08-13 曾踩坑修复）；
-  - 每次发布/删除内容后运行：`scripts/gen_aikefu_index.py --out <本地index路径>`（从 GitHub 拉取最新文件清单 → 静态渲染内容区块 → 内嵌快照），再按上述 Contents API 上传覆盖根目录 `index.html`（需先 GET 拿 `sha`，PUT 时带 `"sha"` 字段）；
+  - 批量上传：遍历 `tweets/*.html` → 逐个 add/commit/push；上传后 curl 检查页面返回 200 确认发布生效。
+- **发布后重建导航页（顺序不可颠倒：先 push 内容，再重建导航）**：
+  - 仓库根 `index.html` 是**静态渲染导航页**（v4：内容在生成时渲染成纯 HTML，零 JS 依赖、打开必定显示、秒开），必须与仓库最新文件一致；
+  - **v4 渲染规则（三段式：分组 / 主题 / 文件）**：分组标题下，主题目录**含 index.html → 只展示一张「主页」入口卡片，绝不展开内部文件**（用户明确要求导航页只展示目录结构）；主题目录无 index.html → 展开文件列表（GitHub Pages 不提供目录浏览，只链目录会空白）；
+  - 每次发布/删除内容后运行：`scripts/gen_aikefu_index.py --out <仓库根 index.html>`（从 GitHub API 拉最新文件清单 → 静态渲染 → 内嵌快照），再 commit/push 覆盖根目录 `index.html`；
+  - 该脚本从 GitHub API 取树，因此**必须在内容 push 之后运行**，否则会漏掉刚发布的文件；
   - 页面有「🔄 刷新列表」按钮可手动拉取最新（备用，默认不依赖）；
-  - 注意：v1 实时 API 版太慢被弃用；v2 内嵌快照版曾因 JS 双引号嵌套语法错误导致内容空白，已升级 v3 静态渲染。
+  - 历史教训：v1 实时 API 版太慢被弃用；v2 内嵌快照版曾因 JS 双引号嵌套语法错误导致内容空白，已升级 v3 静态渲染；v3 只认两级目录，分组重组后会把分组下属主题展开成一长串文件列表，故升级 v4。
 
 ## 三、HTML 生成规范
 
@@ -169,4 +179,4 @@ HTML 报告的结构、CSS 样式、推文卡片格式、高亮规范、附录�
 | `references/conversion-rules.md` | 长文↔推文双向转换规则 |
 | `references/batch-strategy.md` | 批量生成策略、高质量篇目筛选标准、追加生成流程 |
 | `assets/report-template.html` | HTML 报告基础模板 |
-| `scripts/gen_aikefu_index.py` | 重建 AIKefu 根目录导航页 index.html（静态快照，发布后必须重跑并上传覆盖） |
+| `scripts/gen_aikefu_index.py` | 重建仓库根目录导航页 index.html（v4 三段式静态快照；**须在内容 push 之后运行**） |

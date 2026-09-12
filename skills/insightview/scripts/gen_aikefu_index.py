@@ -1,73 +1,120 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Generate a static AIKefu index.html.
+"""Generate a static SaaS2Agent index.html.
 
-v3: the file list is rendered into static HTML at generation time — the page
-shows content with zero JS dependency (instant load, never blank). A small JS
-block powers the optional "refresh" button only.
+v4: three-level structure (group / theme / files). A theme directory that
+contains index.html is rendered as a single "主页" card — its appendix files are
+NOT expanded, so the nav page stays short. A theme directory without index.html
+is expanded into a file list (GitHub Pages offers no directory browsing).
 
 Usage:
-    python gen_aikefu_index.py [--repo Gordon9999/AIKefu] [--branch main] [--out index.html]
+    python gen_aikefu_index.py [--repo Gordon9999/SaaS2Agent] [--branch main] [--out index.html]
 """
 import argparse
 import json
 import subprocess
+import urllib.parse
 import urllib.request
 
 BASE = "https://gordon9999.github.io/"
+SITE = "SaaS2Agent"
+
+# 一级目录分组（顺序即展示顺序；未列出的目录归入「其他」）
+GROUPS = [
+    ("XiaoP", "🤖 个人助理方向"),
+    ("Kefu", "🎧 客服 AI"),
+    ("CRM", "🏢 AI + CRM / 内部系统"),
+    ("SaaS", "💰 传统 SaaS 大佬"),
+]
+
+
+def site_url(path=""):
+    return BASE + SITE + "/" + path
 
 
 def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _label(d):
+    return d.rsplit("/", 1)[-1]
+
+
+def _theme_entry(t):
+    """Render one theme dir (group/theme) as a card, or expand it when no index."""
+    label = _label(t["dir"])
+    if t["hasIndex"]:
+        href = site_url(t["dir"] + "/index.html")
+        return (f'<div class="card"><span><span class="icon">📁</span>'
+                f'<a href="{esc(href)}" target="_blank">{esc(label)}</a></span>'
+                f'<span class="badge">主页</span></div>')
+    html = (f'<div class="card dir-card"><span><span class="icon">📁</span>'
+            f'<span class="dir-name">{esc(label)}</span></span>'
+            f'<span class="badge">{len(t["files"])} 个页面</span></div>')
+    for fn in sorted(t["files"]):
+        fhref = site_url(t["dir"] + "/" + urllib.parse.quote(fn))
+        html += (f'<div class="card file-list"><span><span class="icon">📄</span>'
+                 f'<a href="{esc(fhref)}" target="_blank">{esc(fn)}</a></span></div>')
+    return html
+
+
+def _top_entry(label, href):
+    return (f'<div class="card"><span><span class="icon">📁</span>'
+            f'<a href="{esc(href)}" target="_blank">{esc(label)}</a></span>'
+            f'<span class="badge">主页</span></div>')
+
+
+def _file_entry(path):
+    href = site_url(urllib.parse.quote(path))
+    return (f'<div class="card file-list"><span><span class="icon">📄</span>'
+            f'<a href="{esc(href)}" target="_blank">{esc(path)}</a></span></div>')
+
+
 def render_static(paths):
-    """Render the file list into pure static HTML."""
-    root_files = []
-    dir_map = {}
+    """Render the file tree into pure static HTML (group / theme / files)."""
+    themes = {}      # {"XiaoP/instinct": {"dir":..., "hasIndex":bool, "files":[...]}}
+    root_files = []  # files sitting directly in the repo root
     for p in paths:
-        idx = p.find("/")
-        if idx == -1:
+        if "/" not in p:
             if p != "index.html":
                 root_files.append(p)
             continue
-        d = p[: idx + 1]
-        name = p[idx + 1:]
-        if d not in dir_map:
-            dir_map[d] = {"dir": d, "hasIndex": False, "files": []}
+        d, name = p.rsplit("/", 1)
+        t = themes.setdefault(d, {"dir": d, "hasIndex": False, "files": []})
         if name.lower() == "index.html":
-            dir_map[d]["hasIndex"] = True
+            t["hasIndex"] = True
         else:
-            dir_map[d]["files"].append(name)
+            t["files"].append(name)
 
-    root_files.sort()
     html = ""
-    if root_files:
-        html += '<div class="section-title">📄 根目录页面</div>'
-        for f in root_files:
-            href = BASE + "AIKefu/" + urllib.parse.quote(f)
-            html += (f'<div class="card file-list"><span><span class="icon">📄</span>'
-                     f'<a href="{esc(href)}" target="_blank">{esc(f)}</a></span></div>')
-    dirs = sorted(dir_map.values(), key=lambda d: d["dir"])
-    if dirs:
-        html += '<div class="section-title">📁 子目录</div>'
-        for d in dirs:
-            label = [x for x in d["dir"].split("/") if x][-1]
-            if d["hasIndex"]:
-                href = BASE + "AIKefu/" + d["dir"] + "index.html"
-                html += (f'<div class="card"><span><span class="icon">📁</span>'
-                         f'<a href="{esc(href)}" target="_blank">{esc(label)}</a></span>'
-                         f'<span class="badge">主页</span></div>')
-            else:
-                # 无 index.html 的目录：GitHub Pages 不提供目录浏览，直接展开文件列表
-                html += (f'<div class="card dir-card"><span><span class="icon">📁</span>'
-                         f'<span class="dir-name">{esc(label)}</span></span>'
-                         f'<span class="badge">{len(d["files"])} 个页面</span></div>')
-                for fn in sorted(d["files"]):
-                    fhref = BASE + "AIKefu/" + d["dir"] + urllib.parse.quote(fn)
-                    html += (f'<div class="card file-list"><span><span class="icon">📄</span>'
-                             f'<a href="{esc(fhref)}" target="_blank">{esc(fn)}</a></span></div>')
-    if not root_files and not dirs:
+    used = set()
+    for gdir, glabel in GROUPS:
+        own = themes.get(gdir)
+        children = sorted((t for k, t in themes.items() if k.startswith(gdir + "/")),
+                          key=lambda t: t["dir"])
+        loose = sorted(f for f in root_files if f.startswith(gdir + "/"))
+        if not own and not children and not loose:
+            continue
+        used.add(gdir)
+        for c in children:
+            used.add(c["dir"])
+        html += f'<div class="section-title">{esc(glabel)}</div>'
+        if own and own["hasIndex"]:
+            html += _top_entry(glabel, site_url(gdir + "/index.html"))
+        for f in loose:
+            html += _file_entry(f)
+        for c in children:
+            html += _theme_entry(c)
+
+    remaining_root = sorted(f for f in root_files if f.split("/")[0] not in used)
+    others = sorted((t for k, t in themes.items() if k not in used), key=lambda t: t["dir"])
+    if remaining_root or others:
+        html += '<div class="section-title">📦 其他</div>'
+        for f in remaining_root:
+            html += _file_entry(f)
+        for t in others:
+            html += _theme_entry(t)
+    if not html:
         html = '<div class="status">暂无页面</div>'
     return html
 
@@ -77,7 +124,7 @@ TEMPLATE = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIKefu · 目录导航</title>
+    <title>SaaS2Agent · 目录导航</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -147,9 +194,9 @@ TEMPLATE = """<!DOCTYPE html>
 <div class="container">
 
     <div class="report-header">
-        <h1>📚 AIKefu · 目录导航</h1>
+        <h1>📚 SaaS2Agent · 目录导航</h1>
         <div class="subtitle">仓库内容索引（静态生成，秒开）</div>
-        <div class="meta">数据快照：__GENERATED_AT__ · 子目录含 index 时展示入口，无 index 时展开文件列表</div>
+        <div class="meta">数据快照：__GENERATED_AT__ · 主题含 index 时只展示入口，无 index 时展开文件列表</div>
     </div>
 
     <div class="toolbar">
@@ -161,7 +208,7 @@ TEMPLATE = """<!DOCTYPE html>
 __STATIC_CONTENT__
     </div>
 
-    <div class="footer">Generated by AIKefu Index · <span id="footer-date"></span></div>
+    <div class="footer">Generated by SaaS2Agent Index · <span id="footer-date"></span></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -171,10 +218,12 @@ __STATIC_CONTENT__
     'use strict';
     var REPO = '__REPO__';
     var BRANCH = '__BRANCH__';
-    var BASE = 'https://gordon9999.github.io/AIKefu/';
+    var BASE = '__BASE__';
 
     // 内置快照（path 列表），用于「刷新列表」时重新渲染
     var SNAPSHOT = __SNAPSHOT__;
+
+    var GROUPS = __GROUPS__;
 
     function esc(s) {
         var d = document.createElement('div');
@@ -182,46 +231,73 @@ __STATIC_CONTENT__
         return d.innerHTML;
     }
 
+    function themeEntry(t) {
+        var label = t.dir.split('/').filter(Boolean).pop();
+        if (t.hasIndex) {
+            return '<div class="card"><span><span class="icon">📁</span><a href="' + esc(BASE + t.dir + '/index.html') + '" target="_blank">' + esc(label) + '</a></span><span class="badge">主页</span></div>';
+        }
+        var h = '<div class="card dir-card"><span><span class="icon">📁</span><span class="dir-name">' + esc(label) + '</span></span><span class="badge">' + t.files.length + ' 个页面</span></div>';
+        t.files.sort(function (a, b) { return a.localeCompare(b, 'zh'); });
+        for (var i = 0; i < t.files.length; i++) {
+            h += '<div class="card file-list"><span><span class="icon">📄</span><a href="' + esc(BASE + t.dir + '/' + encodeURIComponent(t.files[i])) + '" target="_blank">' + esc(t.files[i]) + '</a></span></div>';
+        }
+        return h;
+    }
+
+    function topEntry(label, dir) {
+        return '<div class="card"><span><span class="icon">📁</span><a href="' + esc(BASE + dir + '/index.html') + '" target="_blank">' + esc(label) + '</a></span><span class="badge">主页</span></div>';
+    }
+
+    function fileEntry(path) {
+        return '<div class="card file-list"><span><span class="icon">📄</span><a href="' + esc(BASE + encodeURIComponent(path)) + '" target="_blank">' + esc(path) + '</a></span></div>';
+    }
+
     function buildList(paths) {
-        var rootFiles = [];
-        var dirMap = {};
+        var themes = {}, rootFiles = [];
         for (var i = 0; i < paths.length; i++) {
             var p = paths[i];
-            var idx = p.indexOf('/');
-            if (idx === -1) { if (p !== 'index.html') rootFiles.push(p); continue; }
-            var dir = p.slice(0, idx + 1);
-            var name = p.slice(idx + 1);
-            if (!dirMap[dir]) dirMap[dir] = { dir: dir, hasIndex: false, files: [] };
-            if (name.toLowerCase() === 'index.html') dirMap[dir].hasIndex = true;
-            else dirMap[dir].files.push(name);
+            var si = p.lastIndexOf('/');
+            if (si === -1) { if (p !== 'index.html') rootFiles.push(p); continue; }
+            var d = p.slice(0, si), name = p.slice(si + 1);
+            if (!themes[d]) themes[d] = { dir: d, hasIndex: false, files: [] };
+            if (name.toLowerCase() === 'index.html') themes[d].hasIndex = true;
+            else themes[d].files.push(name);
         }
-        rootFiles.sort(function (a, b) { return a.localeCompare(b, 'zh'); });
-        var dirKeys = Object.keys(dirMap).sort(function (a, b) { return a.localeCompare(b, 'zh'); });
-        var html = '';
-        if (rootFiles.length) {
-            html += '<div class="section-title">📄 根目录页面</div>';
-            for (var j = 0; j < rootFiles.length; j++) {
-                html += '<div class="card file-list"><span><span class="icon">📄</span><a href="' + esc(BASE + encodeURIComponent(rootFiles[j])) + '" target="_blank">' + esc(rootFiles[j]) + '</a></span></div>';
+        var html = '', used = {};
+        for (var g = 0; g < GROUPS.length; g++) {
+            var gdir = GROUPS[g][0], glabel = GROUPS[g][1];
+            var own = themes[gdir] || null;
+            var children = [];
+            for (var k in themes) {
+                if (k.indexOf(gdir + '/') === 0) children.push(themes[k]);
             }
-        }
-        if (dirKeys.length) {
-            html += '<div class="section-title">📁 子目录</div>';
-            for (var k = 0; k < dirKeys.length; k++) {
-                var d = dirMap[dirKeys[k]];
-                var label = d.dir.split('/').filter(Boolean).pop();
-                if (d.hasIndex) {
-                    html += '<div class="card"><span><span class="icon">📁</span><a href="' + esc(BASE + d.dir + 'index.html') + '" target="_blank">' + esc(label) + '</a></span><span class="badge">主页</span></div>';
-                } else {
-                    // 无 index.html 的目录：GitHub Pages 不提供目录浏览，直接展开文件列表
-                    html += '<div class="card dir-card"><span><span class="icon">📁</span><span class="dir-name">' + esc(label) + '</span></span><span class="badge">' + d.files.length + ' 个页面</span></div>';
-                    d.files.sort(function (a, b) { return a.localeCompare(b, 'zh'); });
-                    for (var fi = 0; fi < d.files.length; fi++) {
-                        html += '<div class="card file-list"><span><span class="icon">📄</span><a href="' + esc(BASE + d.dir + encodeURIComponent(d.files[fi])) + '" target="_blank">' + esc(d.files[fi]) + '</a></span></div>';
-                    }
-                }
+            children.sort(function (a, b) { return a.dir.localeCompare(b.dir, 'zh'); });
+            var loose = [];
+            for (var r = 0; r < rootFiles.length; r++) {
+                if (rootFiles[r].indexOf(gdir + '/') === 0) loose.push(rootFiles[r]);
             }
+            loose.sort();
+            if (!own && !children.length && !loose.length) continue;
+            used[gdir] = true;
+            for (var cu = 0; cu < children.length; cu++) used[children[cu].dir] = true;
+            html += '<div class="section-title">' + esc(glabel) + '</div>';
+            if (own && own.hasIndex) html += topEntry(glabel, gdir);
+            for (var l = 0; l < loose.length; l++) html += fileEntry(loose[l]);
+            for (var c = 0; c < children.length; c++) html += themeEntry(children[c]);
         }
-        if (!rootFiles.length && !dirKeys.length) html = '<div class="status">暂无页面</div>';
+        var restRoot = [], others = [];
+        for (var r2 = 0; r2 < rootFiles.length; r2++) {
+            if (!used[rootFiles[r2].split('/')[0]]) restRoot.push(rootFiles[r2]);
+        }
+        restRoot.sort();
+        for (var k2 in themes) { if (!used[k2]) others.push(themes[k2]); }
+        others.sort(function (a, b) { return a.dir.localeCompare(b.dir, 'zh'); });
+        if (restRoot.length || others.length) {
+            html += '<div class="section-title">📦 其他</div>';
+            for (var r3 = 0; r3 < restRoot.length; r3++) html += fileEntry(restRoot[r3]);
+            for (var o = 0; o < others.length; o++) html += themeEntry(others[o]);
+        }
+        if (!html) html = '<div class="status">暂无页面</div>';
         return html;
     }
 
@@ -262,12 +338,15 @@ __STATIC_CONTENT__
 def fetch_tree(repo, branch):
     url = f"https://api.github.com/repos/{repo}/git/trees/{branch}?recursive=1"
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "WorkBuddy"}
+
+    def _extract(data):
+        return [t["path"] for t in data.get("tree", [])
+                if t["type"] == "blob" and t["path"].lower().endswith(".html")]
+
     try:
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=30) as r:
-            data = json.loads(r.read())
-        return [t["path"] for t in data.get("tree", [])
-                if t["type"] == "blob" and t["path"].lower().endswith(".html")]
+            return _extract(json.loads(r.read()))
     except Exception as e:
         print(f"WARN: live fetch failed ({e}); trying with keychain token", flush=True)
         try:
@@ -277,25 +356,31 @@ def fetch_tree(repo, branch):
             token = [l.split("=", 1)[1] for l in cred.splitlines() if l.startswith("password=")][0]
             req = urllib.request.Request(url, headers={**headers, "Authorization": f"Bearer {token}"})
             with urllib.request.urlopen(req, timeout=30) as r:
-                data = json.loads(r.read())
-            return [t["path"] for t in data.get("tree", [])
-                    if t["type"] == "blob" and t["path"].lower().endswith(".html")]
+                return _extract(json.loads(r.read()))
         except Exception as e2:
             raise SystemExit(f"FATAL: cannot fetch tree: {e2}")
 
 
 def main():
-    import urllib.parse  # noqa: F401 (used in render_static)
+    global SITE
     ap = argparse.ArgumentParser()
-    ap.add_argument("--repo", default="Gordon9999/AIKefu")
+    ap.add_argument("--repo", default="Gordon9999/SaaS2Agent")
     ap.add_argument("--branch", default="main")
     ap.add_argument("--out", default="index.html")
+    ap.add_argument("--site", default=None, help="GitHub Pages site name (defaults to repo basename)")
+    ap.add_argument("--local", action="store_true", help="skip GitHub API, use local git ls-files (needed before push)")
     args = ap.parse_args()
+    SITE = args.site or args.repo.split("/")[-1]
 
-    try:
-        paths = fetch_tree(args.repo, args.branch)
-    except SystemExit:
-        # API 匿名限流/网络异常时，回退到本地 git 工作副本（须先 clone 并 cd 进仓库根目录）
+    if args.local:
+        paths = None
+    else:
+        try:
+            paths = fetch_tree(args.repo, args.branch)
+        except SystemExit:
+            paths = None
+    if paths is None:
+        # API 匿名限流/网络异常/--local 时，回退到本地 git 工作副本（须先 clone 并 cd 进仓库根目录）
         print("falling back to local git ls-files ...", flush=True)
         out = subprocess.run(["git", "ls-files"], capture_output=True, text=True)
         if out.returncode != 0:
@@ -307,6 +392,8 @@ def main():
     html = TEMPLATE \
         .replace("__REPO__", args.repo) \
         .replace("__BRANCH__", args.branch) \
+        .replace("__BASE__", site_url()) \
+        .replace("__GROUPS__", json.dumps(GROUPS, ensure_ascii=False, separators=(",", ":"))) \
         .replace("__GENERATED_AT__", generated_at) \
         .replace("__SNAPSHOT__", json.dumps(paths, ensure_ascii=False, separators=(",", ":"))) \
         .replace("__STATIC_CONTENT__", static)
