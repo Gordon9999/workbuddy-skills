@@ -368,28 +368,26 @@ HTML 底部必须包含以下信息：
 
 ### Git 信息来源
 
-git 仓库地址、凭证获取方式、技术要点（代理限制、GitHub Contents API 用法等）**统一从 insightview skill 的「第四步：发布到 git」读取**，不在本 skill 重复维护。关键信息摘要：
+git 仓库地址、凭证获取方式、技术要点**统一从 insightview skill 的「第四步：发布到 git」读取**，不在本 skill 重复维护。关键信息摘要（2026-09-12 更新）：
 
-- **git push 不可用**（本地代理隧道 502），必须用 **GitHub Contents API** 上传
-- **API 端点**：`PUT https://api.github.com/repos/Gordon9999/AIKefu/contents/biji/<文件名>`
-- **凭证获取**：`printf "protocol=https\nhost=github.com\n\n" | git credential fill`（password 字段即 token，切勿输出）
-- **上传格式**：body `{"message": "...", "content": "<base64>"}`，Header `Authorization: Bearer <token>`（201 即成功）
-- **上传后验证**：`curl -s -o /dev/null -w "%{http_code}" https://gordon9999.github.io/AIKefu/biji/<文件名>` 返回 200
+- **仓库**：`Gordon9999/SaaS2Agent`（原 AIKefu，2026-09-12 改名），Pages 根 `https://gordon9999.github.io/SaaS2Agent/`
+- **发布方式**：首选 git（SSH 已打通，clone 在 `~/Developer/GitHub/SaaS2Agent`），用 `bash ~/Developer/GitHub/push.sh SaaS2Agent "msg"`（脚本内置锁清理与重试）；git 不可用时降级 GitHub Contents API
+- **目录**：文章按主题归入四大分组 `<分组>/<主题slug>/`——`XiaoP/` 个人助理 / `Kefu/` 客服 AI / `CRM/` AI+CRM / `SaaS/` 传统 SaaS；**旧的 `biji/` 默认目录已废弃**（内容迁至 next3 仓库）
+- **上传后验证**：`curl -s -o /dev/null -w "%{http_code}" https://gordon9999.github.io/SaaS2Agent/<分组>/<主题slug>/` 返回 200
 
 ### 执行流程
 
 1. 生成文章 HTML（或 Markdown，视用户需求）到本地临时文件
 2. 如用户未指定文件名，根据主题生成英文 slug 作为文件名
 3. 读取 insightview skill 获取最新的 git 发布技术细节
-4. base64 编码文件内容 → 调用 GitHub Contents API 上传到 `AIKefu/biji/`
+4. 复制到 `~/Developer/GitHub/SaaS2Agent/<分组>/<主题slug>/` → 用 push.sh 提交推送
 5. curl 验证访问链接返回 200
 6. 输出访问链接给用户
 
 ### 注意事项
 
-- 如果用户说「发布到 git 的 XX 目录下」，则用 XX 替代默认的 `biji/`
-- 如果用户只说「发布到 git」没有指定目录，默认用 `biji/`
-- 发布后如需重建 AIKefu 导航页，参考 insightview skill 中的 `scripts/gen_aikefu_index.py` 流程
+- 用户说「发布到 git」但未指定位置时，**先确认目标分组与目录名**，不要默认写入任何目录
+- 新增主题目录后需重建导航页：`python3 ~/.workbuddy/skills/insightview/scripts/gen_saas2agent_index.py --out ~/Developer/GitHub/SaaS2Agent/index.html`，且**必须在内容 push 之后运行**（脚本从 GitHub API 取树，顺序反了会漏文件）
 
 ## 资源文件
 

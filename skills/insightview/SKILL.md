@@ -128,7 +128,7 @@ InsightView 是一套主题阅读与综合报告生成工作流。用户围绕�
 - **发布后重建导航页（顺序不可颠倒：先 push 内容，再重建导航）**：
   - 仓库根 `index.html` 是**静态渲染导航页**（v4：内容在生成时渲染成纯 HTML，零 JS 依赖、打开必定显示、秒开），必须与仓库最新文件一致；
   - **v4 渲染规则（三段式：分组 / 主题 / 文件）**：分组标题下，主题目录**含 index.html → 只展示一张「主页」入口卡片，绝不展开内部文件**（用户明确要求导航页只展示目录结构）；主题目录无 index.html → 展开文件列表（GitHub Pages 不提供目录浏览，只链目录会空白）；
-  - 每次发布/删除内容后运行：`scripts/gen_aikefu_index.py --out <仓库根 index.html>`（从 GitHub API 拉最新文件清单 → 静态渲染 → 内嵌快照），再 commit/push 覆盖根目录 `index.html`；
+  - 每次发布/删除内容后运行：`scripts/gen_saas2agent_index.py --out <仓库根 index.html>`（从 GitHub API 拉最新文件清单 → 静态渲染 → 内嵌快照），再 commit/push 覆盖根目录 `index.html`；
   - 该脚本从 GitHub API 取树，因此**必须在内容 push 之后运行**，否则会漏掉刚发布的文件；
   - 页面有「🔄 刷新列表」按钮可手动拉取最新（备用，默认不依赖）；
   - 历史教训：v1 实时 API 版太慢被弃用；v2 内嵌快照版曾因 JS 双引号嵌套语法错误导致内容空白，已升级 v3 静态渲染；v3 只认两级目录，分组重组后会把分组下属主题展开成一长串文件列表，故升级 v4。
@@ -179,4 +179,4 @@ HTML 报告的结构、CSS 样式、推文卡片格式、高亮规范、附录�
 | `references/conversion-rules.md` | 长文↔推文双向转换规则 |
 | `references/batch-strategy.md` | 批量生成策略、高质量篇目筛选标准、追加生成流程 |
 | `assets/report-template.html` | HTML 报告基础模板 |
-| `scripts/gen_aikefu_index.py` | 重建仓库根目录导航页 index.html（v4 三段式静态快照；**须在内容 push 之后运行**） |
+| `scripts/gen_saas2agent_index.py` | 重建仓库根目录导航页 index.html（v4 三段式静态快照；**须在内容 push 之后运行**） |
