@@ -8,7 +8,7 @@ NOT expanded, so the nav page stays short. A theme directory without index.html
 is expanded into a file list (GitHub Pages offers no directory browsing).
 
 Usage:
-    python gen_aikefu_index.py [--repo Gordon9999/SaaS2Agent] [--branch main] [--out index.html]
+    python gen_saas2agent_index.py [--repo Gordon9999/SaaS2Agent] [--branch main] [--out index.html]
 """
 import argparse
 import json
