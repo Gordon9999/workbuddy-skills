@@ -111,8 +111,8 @@ InsightView 是一套主题阅读与综合报告生成工作流。用户围绕�
 |---|---|---|
 | `XiaoP/` | 🤖 个人助理方向 | instinct |
 | `Kefu/` | 🎧 客服 AI | cresta / decagon / intercom / sierra / sierra-saas-disruption |
-| `CRM/` | 🏢 AI + CRM / 内部系统 | day.ai / hubspot / rox.ai / salesforce |
-| `SaaS/` | 💰 传统 SaaS 大佬 | servicenow / zendesk |
+| `CRM/` | 🏢 AI + CRM / 内部系统 | day.ai / hubspot / rox.ai |
+| `SaaS/` | 💰 传统 SaaS 大佬 | salesforce / servicenow / zendesk |
 
 - **发布路径 = `<分组>/<主题-slug>/`**（例：`XiaoP/instinct/`、`Kefu/decagon/`）。新主题先判断归属分组；个人助理 / Personal Agent 方向一律进 `XiaoP/`。
 - 执行流程：
