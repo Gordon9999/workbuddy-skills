@@ -135,6 +135,10 @@ InsightView 是一套主题阅读与综合报告生成工作流。用户围绕�
   4. 输出访问链接 `https://gordon9999.github.io/SaaS2Agent/<分组>/<目录名>/`（上传后 curl 验证返回 200）。
 - 技术要点：
   - **首选 git（2026-09-11 起 SSH 已打通）**：仓库 clone 在 `~/Developer/GitHub/SaaS2Agent`，`~/.ssh/config` 已把 github.com 指向 `ssh.github.com:443`，直接 `git add -A && git commit && git push origin main` 即可，无需代理/token；
+  - **网络选路（2026-09-12 实测，别再换回去）**：SSH + ControlMaster 复用稳定 **3-5 秒**；HTTPS `github.com` 匿名 `ls-remote` 实测 **110s / 20s / 75s**，抖动极大。**保持 SSH，不要因为「token 更快」的旧印象切回 HTTPS**；`~/.ssh/config` 的 `ControlPersist` 已设为 `8h`（原 10m，间隔稍久就要重新握手 3-4 秒）；
+  - **一键发布用 `~/Developer/GitHub/push.sh <目录名> "<msg>"`**（2026-09-12 重写）：结尾会打印「未推送提交数」，**只信这一行**——脚本中间输出曾出现「打印 no changes 但实际已提交 / 已提交但没推上去」两种假象，务必用 `git rev-list --count origin/main..HEAD`（0 = 已同步）确认；
+  - **绝不 `rm .git/*.lock`**：沙箱对该路径写保护，`rm` 必失败，配合 `set -e` 会让脚本静默提前退出；
+  - **中断残留体检**：`git count-objects -v` 若报 `warning: garbage found: .git/objects/**/tmp_obj_*`（沙箱写保护导致），执行 `find .git/objects -name 'tmp_obj_*' -type f -delete` 清理；
   - **降级方案（git 不可用时）GitHub Contents API**：`PUT https://api.github.com/repos/Gordon9999/SaaS2Agent/contents/<路径>/<文件名>`，body `{"message": "...", "content": "<base64>"}`，Header `Authorization: Bearer <token>`（201 即成功）；路径带尾斜杠会返回 302 canonical 重定向，须加 `curl -L`；macOS base64 输出带换行，须 `| tr -d '\n'`；
   - 凭证：`printf "protocol=https\nhost=github.com\n\n" | git credential fill` 从钥匙串取（password 字段即 token，**切勿输出**）；
   - 批量上传：遍历 `tweets/*.html` → 逐个 add/commit/push；上传后 curl 检查页面返回 200 确认发布生效。
